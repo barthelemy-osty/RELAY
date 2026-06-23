@@ -1,5 +1,14 @@
 import sodium from 'libsodium-wrappers'
 
+// Constantes hardcodées (valeurs libsodium standards, indépendantes du runtime)
+const PWHASH_SALTBYTES = 16
+const SECRETBOX_NONCEBYTES = 24
+const SECRETBOX_KEYBYTES = 32
+const PWHASH_OPSLIMIT_INTERACTIVE = 2
+const PWHASH_MEMLIMIT_INTERACTIVE = 67108864 // 64 MB
+const PWHASH_ALG_DEFAULT = 2
+const BOX_NONCEBYTES = 24
+
 export async function initCrypto(): Promise<void> {
   await sodium.ready
 }
@@ -33,17 +42,17 @@ export async function encryptPrivateKey(
 ): Promise<{ encryptedKey: string; salt: string; nonce: string }> {
   await sodium.ready
   const privateKey = sodium.from_base64(privateKeyB64)
-  const salt = sodium.randombytes_buf(sodium.crypto_pwhash_SALTBYTES)
-  const nonce = sodium.randombytes_buf(sodium.crypto_secretbox_NONCEBYTES)
+  const salt = sodium.randombytes_buf(PWHASH_SALTBYTES)
+  const nonce = sodium.randombytes_buf(SECRETBOX_NONCEBYTES)
   const passphraseBytes = sodium.from_string(passphrase)
 
   const derivedKey = sodium.crypto_pwhash(
-    sodium.crypto_secretbox_KEYBYTES,
+    SECRETBOX_KEYBYTES,
     passphraseBytes,
     salt,
-    sodium.crypto_pwhash_OPSLIMIT_INTERACTIVE,
-    sodium.crypto_pwhash_MEMLIMIT_INTERACTIVE,
-    sodium.crypto_pwhash_ALG_DEFAULT
+    PWHASH_OPSLIMIT_INTERACTIVE,
+    PWHASH_MEMLIMIT_INTERACTIVE,
+    PWHASH_ALG_DEFAULT
   )
 
   const encryptedKey = sodium.crypto_secretbox_easy(privateKey, nonce, derivedKey)
@@ -68,12 +77,12 @@ export async function decryptPrivateKey(
   const passphraseBytes = sodium.from_string(passphrase)
 
   const derivedKey = sodium.crypto_pwhash(
-    sodium.crypto_secretbox_KEYBYTES,
+    SECRETBOX_KEYBYTES,
     passphraseBytes,
     salt,
-    sodium.crypto_pwhash_OPSLIMIT_INTERACTIVE,
-    sodium.crypto_pwhash_MEMLIMIT_INTERACTIVE,
-    sodium.crypto_pwhash_ALG_DEFAULT
+    PWHASH_OPSLIMIT_INTERACTIVE,
+    PWHASH_MEMLIMIT_INTERACTIVE,
+    PWHASH_ALG_DEFAULT
   )
 
   const privateKey = sodium.crypto_secretbox_open_easy(encryptedKey, nonce, derivedKey)
@@ -91,7 +100,7 @@ export async function encryptMessage(
   const message = sodium.from_string(plaintext)
   const recipientPublicKey = sodium.from_base64(recipientPublicKeyB64)
   const senderPrivateKey = sodium.from_base64(senderPrivateKeyB64)
-  const nonce = sodium.randombytes_buf(sodium.crypto_box_NONCEBYTES)
+  const nonce = sodium.randombytes_buf(BOX_NONCEBYTES)
 
   const ciphertext = sodium.crypto_box_easy(message, nonce, recipientPublicKey, senderPrivateKey)
 
@@ -122,11 +131,11 @@ export async function decryptMessage(
   return sodium.to_string(plaintext)
 }
 
-// ─── Group key encryption (each member gets the group key encrypted for them) ─
+// ─── Group key encryption ─────────────────────────────────────────────────────
 
 export async function generateGroupKey(): Promise<string> {
   await sodium.ready
-  const key = sodium.randombytes_buf(sodium.crypto_secretbox_KEYBYTES)
+  const key = sodium.randombytes_buf(SECRETBOX_KEYBYTES)
   return sodium.to_base64(key)
 }
 
@@ -139,7 +148,7 @@ export async function encryptGroupKeyForMember(
   const groupKey = sodium.from_base64(groupKeyB64)
   const memberPublicKey = sodium.from_base64(memberPublicKeyB64)
   const senderPrivateKey = sodium.from_base64(senderPrivateKeyB64)
-  const nonce = sodium.randombytes_buf(sodium.crypto_box_NONCEBYTES)
+  const nonce = sodium.randombytes_buf(BOX_NONCEBYTES)
 
   const encryptedGroupKey = sodium.crypto_box_easy(
     groupKey,
@@ -182,7 +191,7 @@ export async function encryptGroupMessage(
   await sodium.ready
   const message = sodium.from_string(plaintext)
   const groupKey = sodium.from_base64(groupKeyB64)
-  const nonce = sodium.randombytes_buf(sodium.crypto_secretbox_NONCEBYTES)
+  const nonce = sodium.randombytes_buf(SECRETBOX_NONCEBYTES)
 
   const ciphertext = sodium.crypto_secretbox_easy(message, nonce, groupKey)
   return {
