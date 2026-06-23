@@ -3,10 +3,12 @@ import { createRoot } from 'react-dom/client'
 import { RouterProvider } from 'react-router-dom'
 import { router } from './router'
 import { useSettingsStore, ACCENT_COLORS, FONT_SIZES } from './store/settingsStore'
+import { useAuth } from './hooks/useAuth'
 import './index.css'
 
 function ThemeProvider({ children }: { children: React.ReactNode }) {
   const { settings } = useSettingsStore()
+  useAuth()
 
   useEffect(() => {
     const root = document.documentElement
@@ -15,8 +17,6 @@ function ThemeProvider({ children }: { children: React.ReactNode }) {
     root.style.setProperty('--accent-light', accent.light)
     root.style.setProperty('--accent-ring', accent.ring)
     root.style.setProperty('--font-size-base', FONT_SIZES[settings.fontSize])
-
-    // Theme
     if (settings.theme === 'light') {
       root.classList.add('light')
     } else if (settings.theme === 'dark') {
