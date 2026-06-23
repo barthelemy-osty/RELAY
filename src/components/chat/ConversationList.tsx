@@ -4,7 +4,6 @@ import { Button } from '../ui/Button'
 import { Input } from '../ui/Input'
 import { useChatStore } from '../../store/chatStore'
 import { useAuthStore } from '../../store/authStore'
-import { useConversations } from '../../hooks/useConversations'
 import type { Conversation } from '../../types'
 import { NewConversation } from './NewConversation'
 
