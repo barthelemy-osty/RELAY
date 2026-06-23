@@ -35,10 +35,11 @@ export async function encryptPrivateKey(
   const privateKey = sodium.from_base64(privateKeyB64)
   const salt = sodium.randombytes_buf(sodium.crypto_pwhash_SALTBYTES)
   const nonce = sodium.randombytes_buf(sodium.crypto_secretbox_NONCEBYTES)
+  const passphraseBytes = sodium.from_string(passphrase)
 
   const derivedKey = sodium.crypto_pwhash(
     sodium.crypto_secretbox_KEYBYTES,
-    passphrase,
+    passphraseBytes,
     salt,
     sodium.crypto_pwhash_OPSLIMIT_INTERACTIVE,
     sodium.crypto_pwhash_MEMLIMIT_INTERACTIVE,
@@ -64,10 +65,11 @@ export async function decryptPrivateKey(
   const encryptedKey = sodium.from_base64(encryptedKeyB64)
   const salt = sodium.from_base64(saltB64)
   const nonce = sodium.from_base64(nonceB64)
+  const passphraseBytes = sodium.from_string(passphrase)
 
   const derivedKey = sodium.crypto_pwhash(
     sodium.crypto_secretbox_KEYBYTES,
-    passphrase,
+    passphraseBytes,
     salt,
     sodium.crypto_pwhash_OPSLIMIT_INTERACTIVE,
     sodium.crypto_pwhash_MEMLIMIT_INTERACTIVE,
