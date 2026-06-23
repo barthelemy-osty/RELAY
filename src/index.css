@@ -1,3 +1,44 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+:root {
+  --accent: #7C3AED;
+  --accent-dark: #6D28D9;
+  --accent-light: #EDE9FE;
+  --accent-ring: #7C3AED40;
+  --font-size-base: 15px;
+}
+
+html {
+  font-size: var(--font-size-base);
+}
+
+body {
+  @apply bg-gray-950 text-white antialiased;
+  font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif;
+}
+
+/* Custom scrollbar */
+.scrollbar-thin::-webkit-scrollbar { width: 3px; }
+.scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
+.scrollbar-thin::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 99px; }
+.scrollbar-thin::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.15); }
+
+/* Accent utilities */
+.bg-accent { background-color: var(--accent); }
+.bg-accent-dark { background-color: var(--accent-dark); }
+.text-accent { color: var(--accent); }
+.border-accent { border-color: var(--accent); }
+.ring-accent { --tw-ring-color: var(--accent); }
+.bg-accent\/15 { background-color: color-mix(in srgb, var(--accent) 15%, transparent); }
+.bg-accent\/20 { background-color: color-mix(in srgb, var(--accent) 20%, transparent); }
+.bg-accent\/25 { background-color: color-mix(in srgb, var(--accent) 25%, transparent); }
+.bg-accent\/30 { background-color: color-mix(in srgb, var(--accent) 30%, transparent); }
+.hover\:bg-accent-dark:hover { background-color: var(--accent-dark); }
+.focus-visible\:ring-accent:focus-visible { --tw-ring-color: var(--accent); }
+.focus\:border-accent:focus { border-color: var(--accent); }
+.focus\:ring-accent:focus { --tw-ring-color: var(--accent); }
+
+/* Smooth transitions */
+* { transition-property: background-color, border-color, color; transition-duration: 150ms; }
