@@ -51,7 +51,7 @@ export function MessageThread({ conversation, messages }: MessageThreadProps) {
 
   return (
     <div className="flex-1 overflow-y-auto px-4 py-4 space-y-0.5 scrollbar-thin">
-      {messages.map((msg, i) => {
+      {messages.map((msg) => {
         const isMine = msg.sender_id === user?.id
         const msgDate = formatDate(msg.created_at)
         const showDate = msgDate !== lastDate
