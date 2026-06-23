@@ -1,4 +1,4 @@
-import sodium from 'libsodium-wrappers'
+import sodium from 'libsodium-wrappers-sumo'
 
 // Constantes hardcodées (valeurs libsodium standards, indépendantes du runtime)
 const PWHASH_SALTBYTES = 16
