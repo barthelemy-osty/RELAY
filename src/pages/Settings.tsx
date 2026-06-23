@@ -59,7 +59,6 @@ export function Settings() {
   const { isAppAdmin, bannedUsers, fetchBannedUsers, banUser, unbanUser, searchUsers } = useAdmin()
   const [adminSearch, setAdminSearch] = useState('')
   const [adminResults, setAdminResults] = useState<any[]>([])
-  const [banReason, setBanReason] = useState('')
   const [activeSection, setActiveSection] = useState<'appearance' | 'notifications' | 'security' | 'account' | 'admin'>('appearance')
 
   useEffect(() => {
