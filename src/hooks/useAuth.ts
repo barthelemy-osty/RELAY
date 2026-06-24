@@ -44,7 +44,6 @@ export function useAuth() {
     const fingerprint = await fingerprintKey(keyPair.publicKey)
     const encrypted = await encryptPrivateKey(keyPair.privateKey, password)
 
-    // Email fictif — Supabase en a besoin mais il est invisible pour l'user
     const fakeEmail = `${username.toLowerCase().replace(/[^a-z0-9]/g, '')}_${Date.now()}@r3lay.local`
 
     const { data, error } = await supabase.auth.signUp({ email: fakeEmail, password })
@@ -60,21 +59,26 @@ export function useAuth() {
       key_fingerprint: fingerprint,
     })
 
-    if (insertError) throw new Error(insertError.message)
+    if (insertError) {
+      // Supprimer le compte auth si l'insert échoue
+      await supabase.auth.admin.deleteUser(userId).catch(() => {})
+      if (insertError.code === '23505') throw new Error('Ce nom d\'utilisateur est déjà pris.')
+      throw new Error(insertError.message)
+    }
 
     localStorage.setItem(`r3lay-pk-${userId}`, JSON.stringify(encrypted))
     setPrivateKey(keyPair.privateKey)
   }
 
   async function login(username: string, password: string) {
-    // Retrouver l'email fictif depuis le username
     const { data: profile, error: profileError } = await supabase
       .from('users')
-      .select('id, email')
+      .select('id, email, is_banned')
       .eq('username', username)
       .single()
 
     if (profileError || !profile) throw new Error('Utilisateur introuvable.')
+    if (profile.is_banned) throw new Error('Ce compte a été banni.')
 
     const { data, error } = await supabase.auth.signInWithPassword({
       email: profile.email,
