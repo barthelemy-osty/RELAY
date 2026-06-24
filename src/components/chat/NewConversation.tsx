@@ -4,16 +4,17 @@ import { Input } from '../ui/Input'
 import { Button } from '../ui/Button'
 import { Avatar } from '../ui/Avatar'
 import { supabase } from '../../lib/supabase'
-import { useConversations } from '../../hooks/useConversations'
 import { useChatStore } from '../../store/chatStore'
 import type { User } from '../../types'
 
 interface NewConversationProps {
   open: boolean
   onClose: () => void
+  createDirectConversation: (recipientId: string) => Promise<string>
+  createGroupConversation: (name: string, memberIds: string[], description?: string) => Promise<string>
 }
 
-export function NewConversation({ open, onClose }: NewConversationProps) {
+export function NewConversation({ open, onClose, createDirectConversation, createGroupConversation }: NewConversationProps) {
   const [tab, setTab] = useState<'direct' | 'group'>('direct')
   const [search, setSearch] = useState('')
   const [results, setResults] = useState<User[]>([])
@@ -21,7 +22,6 @@ export function NewConversation({ open, onClose }: NewConversationProps) {
   const [groupName, setGroupName] = useState('')
   const [groupDesc, setGroupDesc] = useState('')
   const [loading, setLoading] = useState(false)
-  const { createDirectConversation, createGroupConversation } = useConversations()
   const { setActiveConversation } = useChatStore()
 
   async function handleSearch(query: string) {
@@ -29,8 +29,9 @@ export function NewConversation({ open, onClose }: NewConversationProps) {
     if (query.length < 2) { setResults([]); return }
     const { data } = await supabase
       .from('users')
-      .select('id, username, avatar_url, public_key, email, key_fingerprint, bio, created_at')
+      .select('id, username, avatar_url, public_key, email, key_fingerprint, bio, created_at, role')
       .ilike('username', `%${query}%`)
+      .neq('role', 'banned')
       .limit(8)
     setResults((data as User[]) ?? [])
   }
@@ -68,7 +69,6 @@ export function NewConversation({ open, onClose }: NewConversationProps) {
 
   return (
     <Modal open={open} onClose={onClose} title="Nouvelle conversation">
-      {/* Tabs */}
       <div className="flex gap-1 bg-white/5 rounded-xl p-1 mb-4">
         {(['direct', 'group'] as const).map(t => (
           <button
@@ -102,7 +102,6 @@ export function NewConversation({ open, onClose }: NewConversationProps) {
         onChange={e => handleSearch(e.target.value)}
       />
 
-      {/* Selected chips */}
       {selected.length > 0 && (
         <div className="flex flex-wrap gap-1.5 mt-3">
           {selected.map(u => (
@@ -120,7 +119,6 @@ export function NewConversation({ open, onClose }: NewConversationProps) {
         </div>
       )}
 
-      {/* Results */}
       {results.length > 0 && (
         <div className="mt-3 space-y-0.5">
           {results.map(u => {
