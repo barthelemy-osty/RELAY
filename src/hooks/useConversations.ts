@@ -1,45 +1,16 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
 import { useChatStore } from '../store/chatStore'
 import { useAuthStore } from '../store/authStore'
-import type { Conversation } from '../types'
+import type { Conversation, Participant } from '../types'
 
 export function useConversations() {
   const { user, privateKey } = useAuthStore()
   const { conversations, setConversations, setGroupKey } = useChatStore()
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null)
+  const subscribedRef = useRef(false)
 
-  useEffect(() => {
-    if (!user || !privateKey) return
-    fetchConversations()
-
-    // Cleanup previous channel if exists
-    if (channelRef.current) {
-      supabase.removeChannel(channelRef.current)
-      channelRef.current = null
-    }
-
-    const channel = supabase
-      .channel(`conversations-${user.id}`)
-      .on('postgres_changes', {
-        event: '*',
-        schema: 'public',
-        table: 'conversation_participants',
-        filter: `user_id=eq.${user.id}`,
-      }, () => fetchConversations())
-      .subscribe()
-
-    channelRef.current = channel
-
-    return () => {
-      if (channelRef.current) {
-        supabase.removeChannel(channelRef.current)
-        channelRef.current = null
-      }
-    }
-  }, [user?.id, privateKey])
-
-  async function fetchConversations() {
+  const fetchConversations = useCallback(async () => {
     if (!user || !privateKey) return
 
     const { data } = await supabase
@@ -68,7 +39,7 @@ export function useConversations() {
       if (conv.is_group && row.encrypted_group_key && row.group_key_nonce) {
         try {
           const { decryptGroupKey } = await import('../lib/crypto')
-          const creatorParticipant = conv.participants?.find(p => p.role === 'owner')
+          const creatorParticipant = (conv.participants as Participant[])?.find(p => p.role === 'owner')
           if (creatorParticipant?.user?.public_key) {
             const groupKey = await decryptGroupKey(
               row.encrypted_group_key,
@@ -85,7 +56,35 @@ export function useConversations() {
     }
 
     setConversations(convs)
-  }
+  }, [user, privateKey, setConversations, setGroupKey])
+
+  useEffect(() => {
+    if (!user || !privateKey) return
+    if (subscribedRef.current) return
+
+    subscribedRef.current = true
+    fetchConversations()
+
+    const channel = supabase
+      .channel(`conversations-${user.id}`)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'conversation_participants',
+        filter: `user_id=eq.${user.id}`,
+      }, () => fetchConversations())
+      .subscribe()
+
+    channelRef.current = channel
+
+    return () => {
+      subscribedRef.current = false
+      if (channelRef.current) {
+        supabase.removeChannel(channelRef.current)
+        channelRef.current = null
+      }
+    }
+  }, [user?.id, privateKey, fetchConversations])
 
   async function createDirectConversation(recipientId: string): Promise<string> {
     if (!user || !privateKey) throw new Error('Non authentifié')
