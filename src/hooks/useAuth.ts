@@ -60,7 +60,6 @@ export function useAuth() {
     })
 
     if (insertError) {
-      // Supprimer le compte auth si l'insert échoue
       await supabase.auth.admin.deleteUser(userId).catch(() => {})
       if (insertError.code === '23505') throw new Error('Ce nom d\'utilisateur est déjà pris.')
       throw new Error(insertError.message)
@@ -73,12 +72,12 @@ export function useAuth() {
   async function login(username: string, password: string) {
     const { data: profile, error: profileError } = await supabase
       .from('users')
-      .select('id, email, is_banned')
+      .select('id, email, role')
       .eq('username', username)
       .single()
 
     if (profileError || !profile) throw new Error('Utilisateur introuvable.')
-    if (profile.is_banned) throw new Error('Ce compte a été banni.')
+    if (profile.role === 'banned') throw new Error('Ce compte a été banni.')
 
     const { data, error } = await supabase.auth.signInWithPassword({
       email: profile.email,
