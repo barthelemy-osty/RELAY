@@ -22,9 +22,9 @@ export function Chat() {
   const { conversations, activeConversationId } = useChatStore()
   const activeConversation = conversations.find(c => c.id === activeConversationId) ?? null
   const { messages, sendMessage } = useMessages(activeConversation)
+  const { createDirectConversation, createGroupConversation } = useConversations()
   const [showGroupInfo, setShowGroupInfo] = useState(false)
   const navigate = useNavigate()
-  useConversations()
 
   const convName = activeConversation ? getConvName(activeConversation, user?.id ?? '') : null
   const otherParticipant = activeConversation?.is_group ? null :
@@ -32,10 +32,11 @@ export function Chat() {
 
   return (
     <div className="flex h-screen bg-gray-950 overflow-hidden">
-      {/* Sidebar */}
       <div className="w-72 flex-shrink-0 flex flex-col">
-        <ConversationList />
-        {/* Bottom nav */}
+        <ConversationList
+          createDirectConversation={createDirectConversation}
+          createGroupConversation={createGroupConversation}
+        />
         <div className="flex items-center gap-1 px-3 py-3 border-t border-white/6">
           <Button variant="ghost" size="icon" onClick={() => navigate('/settings')} title="Paramètres">
             <svg className="w-4.5 h-4.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -50,11 +51,9 @@ export function Chat() {
         </div>
       </div>
 
-      {/* Main content */}
       <main className="flex-1 flex flex-col min-w-0 border-l border-white/6">
         {activeConversation ? (
           <>
-            {/* Header */}
             <header className="flex items-center gap-3 px-5 py-3.5 border-b border-white/6 bg-gray-950/80 backdrop-blur-sm">
               <Avatar
                 name={convName ?? ''}
