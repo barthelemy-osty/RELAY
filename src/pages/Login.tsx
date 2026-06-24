@@ -5,7 +5,7 @@ import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
 
 export function Login() {
-  const [email, setEmail] = useState('')
+  const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -17,7 +17,7 @@ export function Login() {
     setError('')
     setLoading(true)
     try {
-      await login(email, password)
+      await login(username, password)
       navigate('/chat')
     } catch (err: any) {
       setError(err.message ?? 'Erreur de connexion')
@@ -36,15 +36,41 @@ export function Login() {
             </svg>
           </div>
           <h1 className="text-2xl font-bold text-white">r3lay</h1>
-          <p className="text-sm text-gray-500 mt-1">Messagerie chiffrée de bout en bout</p>
+          <p className="text-sm text-gray-500 mt-1">Messagerie chiffrée & anonyme</p>
         </div>
 
         <form onSubmit={handleSubmit} className="bg-white/4 border border-white/8 rounded-2xl p-6 space-y-4">
           <h2 className="text-base font-semibold text-white">Connexion</h2>
-          <Input label="Email" type="email" value={email} onChange={e => setEmail(e.target.value)} autoComplete="email" required />
-          <Input label="Mot de passe" type="password" value={password} onChange={e => setPassword(e.target.value)} autoComplete="current-password" required />
+
+          <Input
+            label="Nom d'utilisateur"
+            value={username}
+            onChange={e => setUsername(e.target.value)}
+            autoComplete="username"
+            required
+          />
+          <Input
+            label="Mot de passe secret"
+            type="password"
+            value={password}
+            onChange={e => setPassword(e.target.value)}
+            autoComplete="current-password"
+            required
+          />
+
           {error && <p className="text-sm text-rose-400">{error}</p>}
-          <Button type="submit" className="w-full" loading={loading}>Se connecter</Button>
+
+          <Button type="submit" className="w-full" loading={loading}>
+            {loading ? 'Connexion…' : 'Se connecter'}
+          </Button>
+
+          <div className="bg-gray-900/60 rounded-xl p-3 text-center">
+            <p className="text-xs text-gray-600 leading-relaxed">
+              🔒 Mot de passe oublié = compte inaccessible.<br />
+              Aucune récupération possible — c'est ça, l'anonymat complet.
+            </p>
+          </div>
+
           <p className="text-sm text-center text-gray-500">
             Pas encore de compte ?{' '}
             <Link to="/register" className="text-accent hover:underline">Créer un compte</Link>
