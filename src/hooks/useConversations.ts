@@ -1,14 +1,15 @@
-import { useEffect, useRef, useCallback } from 'react'
+import { useEffect, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
 import { useChatStore } from '../store/chatStore'
 import { useAuthStore } from '../store/authStore'
 import type { Conversation, Participant } from '../types'
 
+let activeChannel: ReturnType<typeof supabase.channel> | null = null
+let activeUserId: string | null = null
+
 export function useConversations() {
   const { user, privateKey } = useAuthStore()
   const { conversations, setConversations, setGroupKey } = useChatStore()
-  const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null)
-  const subscribedRef = useRef(false)
 
   const fetchConversations = useCallback(async () => {
     if (!user || !privateKey) return
@@ -56,16 +57,26 @@ export function useConversations() {
     }
 
     setConversations(convs)
-  }, [user, privateKey, setConversations, setGroupKey])
+  }, [user?.id, privateKey, setConversations, setGroupKey])
 
   useEffect(() => {
     if (!user || !privateKey) return
-    if (subscribedRef.current) return
 
-    subscribedRef.current = true
+    if (activeUserId === user.id && activeChannel) {
+      fetchConversations()
+      return
+    }
+
+    if (activeChannel) {
+      supabase.removeChannel(activeChannel)
+      activeChannel = null
+      activeUserId = null
+    }
+
     fetchConversations()
 
-    const channel = supabase
+    activeUserId = user.id
+    activeChannel = supabase
       .channel(`conversations-${user.id}`)
       .on('postgres_changes', {
         event: '*',
@@ -75,16 +86,17 @@ export function useConversations() {
       }, () => fetchConversations())
       .subscribe()
 
-    channelRef.current = channel
-
     return () => {
-      subscribedRef.current = false
-      if (channelRef.current) {
-        supabase.removeChannel(channelRef.current)
-        channelRef.current = null
-      }
     }
   }, [user?.id, privateKey, fetchConversations])
+
+  useEffect(() => {
+    if (!user && activeChannel) {
+      supabase.removeChannel(activeChannel)
+      activeChannel = null
+      activeUserId = null
+    }
+  }, [user])
 
   async function createDirectConversation(recipientId: string): Promise<string> {
     if (!user || !privateKey) throw new Error('Non authentifié')
