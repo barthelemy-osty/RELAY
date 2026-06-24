@@ -6,6 +6,7 @@ export interface User {
   public_key: string
   key_fingerprint: string
   bio: string | null
+  role: 'user' | 'moderator' | 'admin' | 'banned'
   created_at: string
 }
 
@@ -53,7 +54,6 @@ export interface Reaction {
   created_at: string
 }
 
-// Settings
 export type Theme = 'dark' | 'light' | 'system'
 export type AccentColor = 'violet' | 'blue' | 'emerald' | 'rose' | 'amber' | 'cyan'
 export type FontSize = 'sm' | 'md' | 'lg'
