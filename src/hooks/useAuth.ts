@@ -38,43 +38,54 @@ export function useAuth() {
     setLoading(false)
   }
 
-  async function register(email: string, password: string, username: string) {
-    try {
-      console.log('1. import crypto...')
-      const { generateKeyPair, fingerprintKey, encryptPrivateKey } = await import('../lib/crypto')
-      console.log('2. generateKeyPair...')
-      const keyPair = await generateKeyPair()
-      console.log('3. fingerprintKey...', keyPair)
-      const fingerprint = await fingerprintKey(keyPair.publicKey)
-      console.log('4. encryptPrivateKey...')
-      const encrypted = await encryptPrivateKey(keyPair.privateKey, password)
-      console.log('5. supabase signUp...')
-      const { data, error } = await supabase.auth.signUp({ email, password })
-      if (error) throw error
-      const userId = data.user!.id
-      console.log('6. insert user...')
-      await supabase.from('users').insert({
-        id: userId,
-        email,
-        username,
-        public_key: keyPair.publicKey,
-        key_fingerprint: fingerprint,
-      })
-      localStorage.setItem(`r3lay-pk-${userId}`, JSON.stringify(encrypted))
-      setPrivateKey(keyPair.privateKey)
-      console.log('7. done!')
-    } catch (err) {
-      console.error('REGISTER ERROR:', err)
-      throw err
-    }
+  async function register(username: string, password: string) {
+    const { generateKeyPair, fingerprintKey, encryptPrivateKey } = await import('../lib/crypto')
+    const keyPair = await generateKeyPair()
+    const fingerprint = await fingerprintKey(keyPair.publicKey)
+    const encrypted = await encryptPrivateKey(keyPair.privateKey, password)
+
+    // Email fictif — Supabase en a besoin mais il est invisible pour l'user
+    const fakeEmail = `${username.toLowerCase().replace(/[^a-z0-9]/g, '')}_${Date.now()}@r3lay.local`
+
+    const { data, error } = await supabase.auth.signUp({ email: fakeEmail, password })
+    if (error) throw error
+
+    const userId = data.user!.id
+
+    const { error: insertError } = await supabase.from('users').insert({
+      id: userId,
+      email: fakeEmail,
+      username,
+      public_key: keyPair.publicKey,
+      key_fingerprint: fingerprint,
+    })
+
+    if (insertError) throw new Error(insertError.message)
+
+    localStorage.setItem(`r3lay-pk-${userId}`, JSON.stringify(encrypted))
+    setPrivateKey(keyPair.privateKey)
   }
 
-  async function login(email: string, password: string) {
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password })
-    if (error) throw error
+  async function login(username: string, password: string) {
+    // Retrouver l'email fictif depuis le username
+    const { data: profile, error: profileError } = await supabase
+      .from('users')
+      .select('id, email')
+      .eq('username', username)
+      .single()
+
+    if (profileError || !profile) throw new Error('Utilisateur introuvable.')
+
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: profile.email,
+      password,
+    })
+    if (error) throw new Error('Mot de passe incorrect.')
+
     const userId = data.user.id
     const stored = localStorage.getItem(`r3lay-pk-${userId}`)
     if (!stored) throw new Error('Clé privée introuvable sur cet appareil.')
+
     const { encryptedKey, salt, nonce } = JSON.parse(stored)
     const pk = await decryptPrivateKey(encryptedKey, salt, nonce, password)
     setPrivateKey(pk)
