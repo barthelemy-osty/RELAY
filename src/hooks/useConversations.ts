@@ -86,8 +86,7 @@ export function useConversations() {
       }, () => fetchConversations())
       .subscribe()
 
-    return () => {
-    }
+    return () => {}
   }, [user?.id, privateKey, fetchConversations])
 
   useEffect(() => {
@@ -99,6 +98,7 @@ export function useConversations() {
   }, [user])
 
   async function createDirectConversation(recipientId: string): Promise<string> {
+    console.log('createDirectConversation called', { user, privateKey })
     if (!user || !privateKey) throw new Error('Non authentifié')
 
     const { data: conv } = await supabase
@@ -164,10 +164,4 @@ export function useConversations() {
   }
 
   return { conversations, createDirectConversation, createGroupConversation }
-}
-
-async function createDirectConversation(recipientId: string): Promise<string> {
-  console.log('createDirectConversation called', { user, privateKey })
-  if (!user || !privateKey) throw new Error('Non authentifié')
-  // ...
 }
