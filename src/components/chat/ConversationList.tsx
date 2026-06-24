@@ -7,6 +7,11 @@ import { useAuthStore } from '../../store/authStore'
 import type { Conversation } from '../../types'
 import { NewConversation } from './NewConversation'
 
+interface ConversationListProps {
+  createDirectConversation: (recipientId: string) => Promise<string>
+  createGroupConversation: (name: string, memberIds: string[], description?: string) => Promise<string>
+}
+
 function getConvName(conv: Conversation, currentUserId: string): string {
   if (conv.is_group) return conv.name ?? 'Groupe sans nom'
   const other = conv.participants?.find(p => p.user_id !== currentUserId)
@@ -19,10 +24,9 @@ function getConvAvatar(conv: Conversation, currentUserId: string): string | null
   return other?.user?.avatar_url ?? null
 }
 
-export function ConversationList() {
+export function ConversationList({ createDirectConversation, createGroupConversation }: ConversationListProps) {
   const { user } = useAuthStore()
-  const { conversations } = useChatStore()
-  const { activeConversationId, setActiveConversation } = useChatStore()
+  const { conversations, activeConversationId, setActiveConversation } = useChatStore()
   const [search, setSearch] = useState('')
   const [showNew, setShowNew] = useState(false)
 
@@ -33,7 +37,6 @@ export function ConversationList() {
 
   return (
     <aside className="flex flex-col h-full w-full bg-gray-950 border-r border-white/6">
-      {/* Header */}
       <div className="flex items-center justify-between px-4 pt-5 pb-3">
         <h1 className="text-lg font-bold text-white tracking-tight">r3lay</h1>
         <Button variant="ghost" size="icon" onClick={() => setShowNew(true)} title="Nouvelle conversation">
@@ -43,7 +46,6 @@ export function ConversationList() {
         </Button>
       </div>
 
-      {/* Search */}
       <div className="px-3 pb-2">
         <Input
           placeholder="Rechercher..."
@@ -57,7 +59,6 @@ export function ConversationList() {
         />
       </div>
 
-      {/* List */}
       <div className="flex-1 overflow-y-auto py-1 scrollbar-thin">
         {filtered.length === 0 && (
           <div className="flex flex-col items-center justify-center h-40 gap-2 text-gray-600">
@@ -113,7 +114,12 @@ export function ConversationList() {
         })}
       </div>
 
-      <NewConversation open={showNew} onClose={() => setShowNew(false)} />
+      <NewConversation
+        open={showNew}
+        onClose={() => setShowNew(false)}
+        createDirectConversation={createDirectConversation}
+        createGroupConversation={createGroupConversation}
+      />
     </aside>
   )
 }
