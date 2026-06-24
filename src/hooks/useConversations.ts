@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useChatStore } from '../store/chatStore'
 import { useAuthStore } from '../store/authStore'
@@ -7,13 +7,20 @@ import type { Conversation } from '../types'
 export function useConversations() {
   const { user, privateKey } = useAuthStore()
   const { conversations, setConversations, setGroupKey } = useChatStore()
+  const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null)
 
   useEffect(() => {
     if (!user || !privateKey) return
     fetchConversations()
 
+    // Cleanup previous channel if exists
+    if (channelRef.current) {
+      supabase.removeChannel(channelRef.current)
+      channelRef.current = null
+    }
+
     const channel = supabase
-      .channel('conversations')
+      .channel(`conversations-${user.id}`)
       .on('postgres_changes', {
         event: '*',
         schema: 'public',
@@ -22,7 +29,14 @@ export function useConversations() {
       }, () => fetchConversations())
       .subscribe()
 
-    return () => { supabase.removeChannel(channel) }
+    channelRef.current = channel
+
+    return () => {
+      if (channelRef.current) {
+        supabase.removeChannel(channelRef.current)
+        channelRef.current = null
+      }
+    }
   }, [user?.id, privateKey])
 
   async function fetchConversations() {
@@ -51,7 +65,6 @@ export function useConversations() {
       const conv = row.conversations as unknown as Conversation
       if (!conv) continue
 
-      // Decrypt group key if group conversation
       if (conv.is_group && row.encrypted_group_key && row.group_key_nonce) {
         try {
           const { decryptGroupKey } = await import('../lib/crypto')
