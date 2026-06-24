@@ -4,25 +4,16 @@ import { useAuthStore } from '../store/authStore'
 
 export interface BannedUser {
   id: string
-  banned_user_id: string
-  reason: string | null
-  banned_at: string
-  banned_by: string
-  user?: {
-    id: string
-    username: string
-    email: string
-    avatar_url: string | null
-  }
+  username: string
+  email: string
+  avatar_url: string | null
+  created_at: string
 }
 
 export function useAdmin() {
   const { user } = useAuthStore()
   const [bannedUsers, setBannedUsers] = useState<BannedUser[]>([])
   const [isLoading, setIsLoading] = useState(false)
-
-  // App-level admin: only the app creator (set via env or first user)
-  // Check if current user has admin flag
   const [isAppAdmin, setIsAppAdmin] = useState(false)
 
   useEffect(() => {
@@ -34,58 +25,47 @@ export function useAdmin() {
     if (!user) return
     const { data } = await supabase
       .from('users')
-      .select('is_admin')
+      .select('role')
       .eq('id', user.id)
       .single()
-    setIsAppAdmin(data?.is_admin ?? false)
+    setIsAppAdmin(data?.role === 'admin' || data?.role === 'moderator')
   }
 
   async function fetchBannedUsers() {
-    if (!isAppAdmin) return
     setIsLoading(true)
     const { data } = await supabase
-      .from('banned_users')
-      .select('*, user:users!banned_user_id(id, username, email, avatar_url)')
-      .order('banned_at', { ascending: false })
+      .from('users')
+      .select('id, username, email, avatar_url, created_at')
+      .eq('role', 'banned')
+      .order('created_at', { ascending: false })
     setBannedUsers((data as BannedUser[]) ?? [])
     setIsLoading(false)
   }
 
-  async function banUser(targetUserId: string, reason?: string) {
+  async function banUser(targetUserId: string, _reason?: string) {
     if (!user || !isAppAdmin) throw new Error('Permission refusée')
-
-    // Insert ban record
-    const { error } = await supabase.from('banned_users').insert({
-      banned_user_id: targetUserId,
-      banned_by: user.id,
-      reason: reason ?? null,
-    })
+    const { error } = await supabase
+      .from('users')
+      .update({ role: 'banned' })
+      .eq('id', targetUserId)
+      .neq('role', 'admin')
     if (error) throw error
-
-    // Revoke all active sessions for that user
-    await supabase.from('users').update({ is_banned: true }).eq('id', targetUserId)
-
     await fetchBannedUsers()
   }
 
   async function unbanUser(targetUserId: string) {
     if (!user || !isAppAdmin) throw new Error('Permission refusée')
-
     const { error } = await supabase
-      .from('banned_users')
-      .delete()
-      .eq('banned_user_id', targetUserId)
+      .from('users')
+      .update({ role: 'user' })
+      .eq('id', targetUserId)
     if (error) throw error
-
-    await supabase.from('users').update({ is_banned: false }).eq('id', targetUserId)
     await fetchBannedUsers()
   }
 
-  // Group-level: kick a member from a group (owner or admin only)
   async function kickFromGroup(conversationId: string, targetUserId: string) {
     if (!user) throw new Error('Non authentifié')
 
-    // Verify caller is owner or admin of the group
     const { data: caller } = await supabase
       .from('conversation_participants')
       .select('role')
@@ -97,7 +77,6 @@ export function useAdmin() {
       throw new Error('Permission refusée')
     }
 
-    // Cannot kick the owner
     const { data: target } = await supabase
       .from('conversation_participants')
       .select('role')
@@ -114,7 +93,6 @@ export function useAdmin() {
       .eq('user_id', targetUserId)
   }
 
-  // Group-level: promote/demote a member
   async function setMemberRole(
     conversationId: string,
     targetUserId: string,
@@ -138,13 +116,12 @@ export function useAdmin() {
       .eq('user_id', targetUserId)
   }
 
-  // Search all users (admin only)
   async function searchUsers(query: string) {
     if (!isAppAdmin) return []
     const { data } = await supabase
       .from('users')
-      .select('id, username, email, avatar_url, is_banned, created_at')
-      .or(`username.ilike.%${query}%,email.ilike.%${query}%`)
+      .select('id, username, avatar_url, role, created_at')
+      .ilike('username', `%${query}%`)
       .limit(20)
     return data ?? []
   }
