@@ -6,6 +6,7 @@ import { Input } from '../components/ui/Input'
 import { Avatar } from '../components/ui/Avatar'
 import { useAuthStore } from '../store/authStore'
 import { useState, useEffect } from 'react'
+import { supabase } from '../lib/supabase'
 import type { AccentColor, Theme, FontSize, BubbleStyle, MessageDensity, NotificationSound } from '../types'
 
 function SettingRow({ label, description, children }: { label: string; description?: string; children: React.ReactNode }) {
@@ -54,12 +55,26 @@ function ChipSelect<T extends string>({ options, value, onChange, labels }: {
 
 export function Settings() {
   const { settings, updateSetting, resetSettings } = useSettingsStore()
-  const { user } = useAuthStore()
+  const { user, setUser } = useAuthStore()
   const { signOut } = useAuth()
   const { isAppAdmin, bannedUsers, fetchBannedUsers, banUser, unbanUser, searchUsers } = useAdmin()
   const [adminSearch, setAdminSearch] = useState('')
   const [adminResults, setAdminResults] = useState<any[]>([])
   const [activeSection, setActiveSection] = useState<'appearance' | 'notifications' | 'security' | 'account' | 'admin'>('appearance')
+
+  const [newUsername, setNewUsername] = useState('')
+  const [usernameError, setUsernameError] = useState('')
+  const [usernameSuccess, setUsernameSuccess] = useState('')
+  const [usernameLoading, setUsernameLoading] = useState(false)
+
+  const usernameChangedAt = (user as any)?.username_changed_at
+  const nextChangeDate = usernameChangedAt
+    ? new Date(new Date(usernameChangedAt).getTime() + 7 * 24 * 60 * 60 * 1000)
+    : null
+  const canChangeUsername = !nextChangeDate || new Date() > nextChangeDate
+  const daysLeft = nextChangeDate
+    ? Math.ceil((nextChangeDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+    : 0
 
   useEffect(() => {
     if (isAppAdmin) fetchBannedUsers()
@@ -72,6 +87,34 @@ export function Settings() {
     setAdminResults(results)
   }
 
+  async function handleUsernameChange() {
+    if (!user) return
+    setUsernameError('')
+    setUsernameSuccess('')
+    if (!newUsername.trim()) { setUsernameError('Le nom d\'utilisateur ne peut pas être vide.'); return }
+    if (newUsername.trim() === user.username) { setUsernameError('C\'est déjà ton nom d\'utilisateur.'); return }
+    if (newUsername.length < 3) { setUsernameError('Minimum 3 caractères.'); return }
+    if (!/^[a-zA-Z0-9_]+$/.test(newUsername)) { setUsernameError('Uniquement lettres, chiffres et underscores.'); return }
+
+    setUsernameLoading(true)
+    const { error } = await supabase
+      .from('users')
+      .update({ username: newUsername.trim(), username_changed_at: new Date().toISOString() })
+      .eq('id', user.id)
+
+    setUsernameLoading(false)
+
+    if (error) {
+      if (error.code === '23505') setUsernameError('Ce nom d\'utilisateur est déjà pris.')
+      else setUsernameError(error.message)
+      return
+    }
+
+    setUser({ ...user, username: newUsername.trim(), username_changed_at: new Date().toISOString() } as any)
+    setUsernameSuccess('Nom d\'utilisateur mis à jour !')
+    setNewUsername('')
+  }
+
   const sections = [
     { id: 'appearance', label: 'Apparence', icon: '🎨' },
     { id: 'notifications', label: 'Notifications', icon: '🔔' },
@@ -82,7 +125,6 @@ export function Settings() {
 
   return (
     <div className="flex h-full bg-gray-950">
-      {/* Sidebar */}
       <nav className="w-52 border-r border-white/6 p-3 flex flex-col gap-1">
         <p className="text-xs font-semibold text-gray-600 uppercase tracking-wider px-2 mb-2">Paramètres</p>
         {sections.map(s => (
@@ -101,14 +143,11 @@ export function Settings() {
         </div>
       </nav>
 
-      {/* Content */}
       <div className="flex-1 overflow-y-auto p-6">
 
-        {/* ── APPEARANCE ── */}
         {activeSection === 'appearance' && (
           <div className="max-w-lg">
             <h2 className="text-base font-semibold text-white mb-4">Apparence</h2>
-
             <div className="bg-white/4 rounded-2xl px-4 divide-y divide-white/6">
               <SettingRow label="Thème" description="Couleur de fond globale">
                 <ChipSelect<Theme>
@@ -118,7 +157,6 @@ export function Settings() {
                   labels={{ dark: 'Sombre', light: 'Clair', system: 'Système' }}
                 />
               </SettingRow>
-
               <SettingRow label="Couleur d'accentuation">
                 <div className="flex gap-1.5">
                   {Object.entries(ACCENT_COLORS).map(([key, val]) => (
@@ -132,7 +170,6 @@ export function Settings() {
                   ))}
                 </div>
               </SettingRow>
-
               <SettingRow label="Taille du texte">
                 <ChipSelect<FontSize>
                   options={['sm', 'md', 'lg']}
@@ -141,7 +178,6 @@ export function Settings() {
                   labels={{ sm: 'Petit', md: 'Moyen', lg: 'Grand' }}
                 />
               </SettingRow>
-
               <SettingRow label="Style des bulles">
                 <ChipSelect<BubbleStyle>
                   options={['modern', 'minimal', 'rounded']}
@@ -150,7 +186,6 @@ export function Settings() {
                   labels={{ modern: 'Moderne', minimal: 'Minimal', rounded: 'Arrondi' }}
                 />
               </SettingRow>
-
               <SettingRow label="Densité des messages">
                 <ChipSelect<MessageDensity>
                   options={['compact', 'comfortable', 'spacious']}
@@ -159,23 +194,19 @@ export function Settings() {
                   labels={{ compact: 'Compact', comfortable: 'Normal', spacious: 'Aéré' }}
                 />
               </SettingRow>
-
               <SettingRow label="Barre latérale compacte">
                 <Toggle value={settings.compactSidebar} onChange={v => updateSetting('compactSidebar', v)} />
               </SettingRow>
-
               <SettingRow label="Afficher les horodatages">
                 <Toggle value={settings.showTimestamps} onChange={v => updateSetting('showTimestamps', v)} />
               </SettingRow>
             </div>
-
             <Button variant="ghost" size="sm" className="mt-4 text-gray-500" onClick={resetSettings}>
               Réinitialiser les paramètres
             </Button>
           </div>
         )}
 
-        {/* ── NOTIFICATIONS ── */}
         {activeSection === 'notifications' && (
           <div className="max-w-lg">
             <h2 className="text-base font-semibold text-white mb-4">Notifications</h2>
@@ -195,7 +226,6 @@ export function Settings() {
           </div>
         )}
 
-        {/* ── SECURITY ── */}
         {activeSection === 'security' && (
           <div className="max-w-lg">
             <h2 className="text-base font-semibold text-white mb-4">Sécurité & confidentialité</h2>
@@ -208,7 +238,7 @@ export function Settings() {
               </SettingRow>
               <SettingRow label="Empreinte de clé publique" description="Vérifiez votre identité cryptographique">
                 <span className="text-xs font-mono text-gray-500 bg-white/5 px-2 py-1 rounded-lg">
-                  {user && 'key_fingerprint' in user ? (user as any).key_fingerprint : '—'}
+                  {user?.key_fingerprint ?? '—'}
                 </span>
               </SettingRow>
             </div>
@@ -221,17 +251,46 @@ export function Settings() {
           </div>
         )}
 
-        {/* ── ACCOUNT ── */}
         {activeSection === 'account' && (
           <div className="max-w-lg">
             <h2 className="text-base font-semibold text-white mb-4">Mon compte</h2>
+
             <div className="flex items-center gap-4 p-4 bg-white/4 rounded-2xl mb-4">
               <Avatar name={user?.username} src={user?.avatar_url} size="lg" />
               <div>
                 <p className="font-semibold text-white">{user?.username}</p>
-                <p className="text-sm text-gray-500">{user?.email}</p>
+                <p className="text-xs text-gray-600 mt-0.5 capitalize">{user?.role ?? 'user'}</p>
               </div>
             </div>
+
+            <div className="bg-white/4 rounded-2xl p-4 mb-4">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Changer de nom d'utilisateur</p>
+
+              {canChangeUsername ? (
+                <div className="space-y-3">
+                  <Input
+                    placeholder={`Actuel : ${user?.username}`}
+                    value={newUsername}
+                    onChange={e => setNewUsername(e.target.value)}
+                  />
+                  {usernameError && <p className="text-xs text-rose-400">{usernameError}</p>}
+                  {usernameSuccess && <p className="text-xs text-emerald-400">{usernameSuccess}</p>}
+                  <Button size="sm" loading={usernameLoading} onClick={handleUsernameChange}>
+                    Confirmer le changement
+                  </Button>
+                </div>
+              ) : (
+                <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-3">
+                  <p className="text-xs text-amber-400">
+                    Prochain changement possible dans <strong>{daysLeft} jour{daysLeft > 1 ? 's' : ''}</strong>.
+                  </p>
+                  <p className="text-xs text-amber-200/50 mt-1">
+                    Disponible le {nextChangeDate?.toLocaleDateString('fr-FR')}
+                  </p>
+                </div>
+              )}
+            </div>
+
             <div className="bg-white/4 rounded-2xl px-4 divide-y divide-white/6">
               <SettingRow label="Langue de l'interface">
                 <ChipSelect
@@ -245,17 +304,15 @@ export function Settings() {
           </div>
         )}
 
-        {/* ── ADMIN ── */}
         {activeSection === 'admin' && isAppAdmin && (
           <div className="max-w-lg">
             <h2 className="text-base font-semibold text-white mb-1">Administration</h2>
             <p className="text-sm text-gray-500 mb-4">Gestion globale des utilisateurs de r3lay</p>
 
-            {/* Search & ban */}
             <div className="bg-white/4 rounded-2xl p-4 mb-4">
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Rechercher un utilisateur</p>
               <Input
-                placeholder="Nom d'utilisateur ou email..."
+                placeholder="Nom d'utilisateur..."
                 value={adminSearch}
                 onChange={e => handleAdminSearch(e.target.value)}
               />
@@ -266,16 +323,18 @@ export function Settings() {
                       <Avatar name={u.username} src={u.avatar_url} size="sm" />
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-white">{u.username}</p>
-                        <p className="text-xs text-gray-500">{u.email}</p>
+                        <p className="text-xs text-gray-500 capitalize">{u.role}</p>
                       </div>
-                      {u.is_banned ? (
+                      {u.role === 'banned' ? (
                         <Button variant="outline" size="sm" onClick={() => unbanUser(u.id)}>
                           Débannir
                         </Button>
-                      ) : (
+                      ) : u.role !== 'admin' ? (
                         <Button variant="danger" size="sm" onClick={() => banUser(u.id, 'Banni par l\'admin')}>
                           Bannir
                         </Button>
+                      ) : (
+                        <span className="text-xs text-gray-600 px-2">protégé</span>
                       )}
                     </div>
                   ))}
@@ -283,7 +342,6 @@ export function Settings() {
               )}
             </div>
 
-            {/* Banned users list */}
             <div className="bg-white/4 rounded-2xl p-4">
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
                 Utilisateurs bannis · {bannedUsers.length}
@@ -292,17 +350,16 @@ export function Settings() {
                 <p className="text-sm text-gray-600 text-center py-4">Aucun utilisateur banni</p>
               ) : (
                 <div className="space-y-2">
-                  {bannedUsers.map(b => (
+                  {bannedUsers.map((b: any) => (
                     <div key={b.id} className="flex items-center gap-3 p-2 rounded-xl bg-rose-500/5 border border-rose-500/15">
-                      <Avatar name={b.user?.username} src={b.user?.avatar_url} size="sm" />
+                      <Avatar name={b.username} src={b.avatar_url} size="sm" />
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-white">{b.user?.username}</p>
-                        {b.reason && <p className="text-xs text-gray-500">{b.reason}</p>}
+                        <p className="text-sm font-medium text-white">{b.username}</p>
                         <p className="text-[10px] text-gray-700">
-                          {new Date(b.banned_at).toLocaleDateString('fr-FR')}
+                          {new Date(b.created_at).toLocaleDateString('fr-FR')}
                         </p>
                       </div>
-                      <Button variant="outline" size="sm" onClick={() => unbanUser(b.banned_user_id)}>
+                      <Button variant="outline" size="sm" onClick={() => unbanUser(b.id)}>
                         Débannir
                       </Button>
                     </div>
