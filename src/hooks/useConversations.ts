@@ -165,3 +165,9 @@ export function useConversations() {
 
   return { conversations, createDirectConversation, createGroupConversation }
 }
+
+async function createDirectConversation(recipientId: string): Promise<string> {
+  console.log('createDirectConversation called', { user, privateKey })
+  if (!user || !privateKey) throw new Error('Non authentifié')
+  // ...
+}
