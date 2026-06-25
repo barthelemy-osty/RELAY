@@ -5,7 +5,7 @@ import { decryptPrivateKey } from '../lib/crypto'
 import type { User } from '../types'
 
 export function useAuth() {
-  const { user, privateKey, isLoading, setUser, setPrivateKey, setLoading, logout } = useAuthStore()
+  const { user, privateKey, isLoading, setUser, setPrivateKey, setLoading, logout, setBanned } = useAuthStore()
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -28,13 +28,49 @@ export function useAuth() {
     return () => subscription.unsubscribe()
   }, [])
 
+  useEffect(() => {
+    if (!user?.id) return
+
+    const channel = supabase
+      .channel(`profile-${user.id}`)
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'users',
+        filter: `id=eq.${user.id}`,
+      }, async (payload) => {
+        const updated = payload.new as User
+        if (updated.role === 'banned') {
+          await supabase.auth.signOut()
+          setBanned(true)
+        } else {
+          setUser(updated)
+        }
+      })
+      .subscribe()
+
+    return () => { supabase.removeChannel(channel) }
+  }, [user?.id])
+
   async function fetchProfile(userId: string) {
     const { data } = await supabase
       .from('users')
       .select('*')
       .eq('id', userId)
       .single()
-    if (data) setUser(data as User)
+
+    if (data) {
+      if (data.role === 'banned') {
+        await supabase.auth.signOut()
+        setBanned(true)
+        setLoading(false)
+        return
+      }
+      setUser(data as User)
+
+      const raw = localStorage.getItem(`r3lay-pk-raw-${userId}`)
+      if (raw) setPrivateKey(raw)
+    }
     setLoading(false)
   }
 
@@ -66,6 +102,7 @@ export function useAuth() {
     }
 
     localStorage.setItem(`r3lay-pk-${userId}`, JSON.stringify(encrypted))
+    localStorage.setItem(`r3lay-pk-raw-${userId}`, keyPair.privateKey)
     setPrivateKey(keyPair.privateKey)
   }
 
@@ -91,10 +128,15 @@ export function useAuth() {
 
     const { encryptedKey, salt, nonce } = JSON.parse(stored)
     const pk = await decryptPrivateKey(encryptedKey, salt, nonce, password)
+
+    localStorage.setItem(`r3lay-pk-raw-${userId}`, pk)
     setPrivateKey(pk)
   }
 
   async function signOut() {
+    if (user?.id) {
+      localStorage.removeItem(`r3lay-pk-raw-${user.id}`)
+    }
     await supabase.auth.signOut()
     logout()
   }
