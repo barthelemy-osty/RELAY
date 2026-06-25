@@ -34,18 +34,32 @@ export function useConversations() {
 
     const convs: Conversation[] = []
     for (const row of data) {
-      const conv = row.conversations as unknown as Conversation
-      if (!conv) continue
+      const rawConv = row.conversations as any
+      if (!rawConv) continue
+
+      // Supabase retourne les participants sous "conversation_participants" (nom de la table)
+      // On les normalise vers "participants" pour correspondre au type Conversation
+      const participants: Participant[] = (rawConv.conversation_participants ?? []).map((p: any) => ({
+        ...p,
+        user: p.users ?? null,
+      }))
+
+      const conv: Conversation = {
+        ...rawConv,
+        participants,
+      }
 
       if (conv.is_group && row.encrypted_group_key && row.group_key_nonce) {
         try {
           const { decryptGroupKey } = await import('../lib/crypto')
-          const creatorParticipant = (conv.participants as Participant[])?.find(p => p.role === 'owner')
-          if (creatorParticipant?.user?.public_key) {
+          // La clé de groupe a été chiffrée par le owner avec la clé publique de chaque membre.
+          // Pour déchiffrer, on a besoin de la clé publique du owner (l'expéditeur du chiffrement).
+          const ownerParticipant = participants.find(p => p.role === 'owner')
+          if (ownerParticipant?.user?.public_key) {
             const groupKey = await decryptGroupKey(
               row.encrypted_group_key,
               row.group_key_nonce,
-              creatorParticipant.user.public_key,
+              ownerParticipant.user.public_key,
               privateKey
             )
             setGroupKey(conv.id, groupKey)
@@ -100,6 +114,14 @@ export function useConversations() {
   async function createDirectConversation(recipientId: string): Promise<string> {
   console.log('createDirectConversation called', { user, privateKey })
   if (!user || !privateKey) throw new Error('Non authentifié')
+
+  // Vérifier si une conversation directe existe déjà entre ces deux utilisateurs
+  const existing = conversations.find(c =>
+    !c.is_group &&
+    c.participants?.some(p => p.user_id === recipientId) &&
+    c.participants?.some(p => p.user_id === user.id)
+  )
+  if (existing) return existing.id
 
   const { data: conv, error } = await supabase
     .from('conversations')
