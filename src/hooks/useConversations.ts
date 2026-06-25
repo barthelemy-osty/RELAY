@@ -98,23 +98,27 @@ export function useConversations() {
   }, [user])
 
   async function createDirectConversation(recipientId: string): Promise<string> {
-    console.log('createDirectConversation called', { user, privateKey })
-    if (!user || !privateKey) throw new Error('Non authentifié')
+  console.log('createDirectConversation called', { user, privateKey })
+  if (!user || !privateKey) throw new Error('Non authentifié')
 
-    const { data: conv } = await supabase
-      .from('conversations')
-      .insert({ is_group: false, created_by: user.id })
-      .select()
-      .single()
+  const { data: conv, error } = await supabase
+    .from('conversations')
+    .insert({ is_group: false, created_by: user.id })
+    .select()
+    .single()
 
-    await supabase.from('conversation_participants').insert([
-      { conversation_id: conv.id, user_id: user.id, role: 'owner' },
-      { conversation_id: conv.id, user_id: recipientId, role: 'member' },
-    ])
+  if (error || !conv) throw new Error(`Erreur création conversation: ${error?.message}`)
 
-    await fetchConversations()
-    return conv.id
-  }
+  const { error: partError } = await supabase.from('conversation_participants').insert([
+    { conversation_id: conv.id, user_id: user.id, role: 'owner' },
+    { conversation_id: conv.id, user_id: recipientId, role: 'member' },
+  ])
+
+  if (partError) throw new Error(`Erreur ajout participants: ${partError.message}`)
+
+  await fetchConversations()
+  return conv.id
+}
 
   async function createGroupConversation(
     name: string,
