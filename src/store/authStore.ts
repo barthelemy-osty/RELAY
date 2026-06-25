@@ -30,7 +30,21 @@ export const useAuthStore = create<AuthState>()(
     {
       name: 'r3lay-auth',
       version: 1,
-      partialize: (state) => ({ user: state.user, isBanned: state.isBanned, privateKey: state.privateKey }),
+      migrate: (persistedState: any, version) => {
+        if (version === 0) {
+          return {
+            ...persistedState,
+            privateKey: persistedState.privateKey ?? null,
+            isBanned: persistedState.isBanned ?? false,
+          }
+        }
+        return persistedState
+      },
+      partialize: (state) => ({
+        user: state.user,
+        isBanned: state.isBanned,
+        privateKey: state.privateKey,
+      }),
     }
   )
 )
