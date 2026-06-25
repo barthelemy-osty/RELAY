@@ -4,6 +4,8 @@ import { useAuthStore } from '../store/authStore'
 import { decryptPrivateKey } from '../lib/crypto'
 import type { User } from '../types'
 
+let profileChannel: ReturnType<typeof supabase.channel> | null = null
+
 export function useAuth() {
   const { user, privateKey, isLoading, setUser, setPrivateKey, setLoading, logout, setBanned } = useAuthStore()
 
@@ -30,8 +32,9 @@ export function useAuth() {
 
   useEffect(() => {
     if (!user?.id) return
+    if (profileChannel) return
 
-    const channel = supabase
+    profileChannel = supabase
       .channel(`profile-${user.id}`)
       .on('postgres_changes', {
         event: 'UPDATE',
@@ -49,8 +52,15 @@ export function useAuth() {
       })
       .subscribe()
 
-    return () => { supabase.removeChannel(channel) }
+    return () => {}
   }, [user?.id])
+
+  useEffect(() => {
+    if (!user && profileChannel) {
+      supabase.removeChannel(profileChannel)
+      profileChannel = null
+    }
+  }, [user])
 
   async function fetchProfile(userId: string) {
     const { data } = await supabase
@@ -67,9 +77,9 @@ export function useAuth() {
         return
       }
       setUser(data as User)
-
-      const raw = localStorage.getItem(`r3lay-pk-raw-${userId}`)
-      if (raw) setPrivateKey(raw)
+      // Récupère la privateKey depuis sessionStorage (effacé à la fermeture du tab)
+      const pk = sessionStorage.getItem(`r3lay-pk-${userId}`)
+      if (pk) setPrivateKey(pk)
     }
     setLoading(false)
   }
@@ -101,8 +111,9 @@ export function useAuth() {
       throw new Error(insertError.message)
     }
 
+    // Clé chiffrée dans localStorage (permanente), clé en clair dans sessionStorage (session uniquement)
     localStorage.setItem(`r3lay-pk-${userId}`, JSON.stringify(encrypted))
-    localStorage.setItem(`r3lay-pk-raw-${userId}`, keyPair.privateKey)
+    sessionStorage.setItem(`r3lay-pk-${userId}`, keyPair.privateKey)
     setPrivateKey(keyPair.privateKey)
   }
 
@@ -129,14 +140,13 @@ export function useAuth() {
     const { encryptedKey, salt, nonce } = JSON.parse(stored)
     const pk = await decryptPrivateKey(encryptedKey, salt, nonce, password)
 
-    localStorage.setItem(`r3lay-pk-raw-${userId}`, pk)
+    // Clé en clair dans sessionStorage — effacée à la fermeture du tab
+    sessionStorage.setItem(`r3lay-pk-${userId}`, pk)
     setPrivateKey(pk)
   }
 
   async function signOut() {
-    if (user?.id) {
-      localStorage.removeItem(`r3lay-pk-raw-${user.id}`)
-    }
+    if (user?.id) sessionStorage.removeItem(`r3lay-pk-${user.id}`)
     await supabase.auth.signOut()
     logout()
   }
