@@ -138,10 +138,15 @@ export function useAuth() {
 
     const userId = data.user.id
     const stored = localStorage.getItem(`r3lay-pk-${userId}`)
-    if (!stored) throw new Error('Clé privée introuvable sur cet appareil.')
+    if (!stored) throw new Error('Clé privée introuvable sur cet appareil. RELAY stocke les clés localement : reconnectez-vous depuis l\'appareil où vous avez créé le compte, ou importez votre sauvegarde de clé.')
 
     const { encryptedKey, salt, nonce } = JSON.parse(stored)
-    const pk = await decryptPrivateKey(encryptedKey, salt, nonce, password)
+    let pk: string
+    try {
+      pk = await decryptPrivateKey(encryptedKey, salt, nonce, password)
+    } catch {
+      throw new Error('Mot de passe incorrect ou clé corrompue.')
+    }
 
     sessionStorage.setItem(`r3lay-pk-${userId}`, pk)
     setPrivateKey(pk)
