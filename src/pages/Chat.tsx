@@ -3,6 +3,7 @@ import { ConversationList } from '../components/chat/ConversationList'
 import { MessageThread } from '../components/chat/MessageThread'
 import { MessageInput } from '../components/chat/MessageInput'
 import { GroupInfo } from '../components/chat/GroupInfo'
+import { UnlockModal } from '../components/chat/UnlockModal'
 import { Avatar } from '../components/ui/Avatar'
 import { Button } from '../components/ui/Button'
 import { useChatStore } from '../store/chatStore'
@@ -18,7 +19,7 @@ function getConvName(conv: any, userId: string): string {
 }
 
 export function Chat() {
-  const { user } = useAuthStore()
+  const { user, privateKey } = useAuthStore()
   const { conversations, activeConversationId } = useChatStore()
   const activeConversation = conversations.find(c => c.id === activeConversationId) ?? null
   const { messages, sendMessage } = useMessages(activeConversation)
@@ -29,6 +30,9 @@ export function Chat() {
   const convName = activeConversation ? getConvName(activeConversation, user?.id ?? '') : null
   const otherParticipant = activeConversation?.is_group ? null :
     activeConversation?.participants?.find(p => p.user_id !== user?.id)
+
+  // Clé privée absente (ex: refresh de page) → demander le mot de passe
+  if (!privateKey) return <UnlockModal />
 
   return (
     <div className="flex h-screen bg-gray-950 overflow-hidden">
