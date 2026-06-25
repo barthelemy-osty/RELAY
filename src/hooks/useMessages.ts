@@ -24,11 +24,17 @@ export function useMessages(conversation: Conversation | null) {
         filter: `conversation_id=eq.${conversationId}`,
       }, async (payload) => {
         const msg = payload.new as Message
-        const { data: sender } = await supabase
-          .from('users')
-          .select('*')
-          .eq('id', msg.sender_id)
-          .single()
+        // Chercher le sender dans les participants déjà chargés pour éviter un appel réseau
+        const senderFromParticipants = conversation?.participants?.find(p => p.user_id === msg.sender_id)?.user
+        let sender = senderFromParticipants
+        if (!sender) {
+          const { data: fetchedSender } = await supabase
+            .from('users')
+            .select('*')
+            .eq('id', msg.sender_id)
+            .single()
+          sender = fetchedSender
+        }
         const decrypted = await decryptMsg({ ...msg, sender })
         addMessage(conversationId, decrypted)
       })
@@ -48,10 +54,23 @@ export function useMessages(conversation: Conversation | null) {
         return { ...msg, decrypted: text }
       } else {
         const { decryptMessage } = await import('../lib/crypto')
-        const senderPubKey = msg.sender?.public_key
-        if (!senderPubKey) return { ...msg, decrypted: '[Clé expéditeur introuvable]' }
-        const text = await decryptMessage(msg.ciphertext, msg.nonce, senderPubKey, privateKey)
-        return { ...msg, decrypted: text }
+        const isMine = msg.sender_id === user?.id
+        if (isMine) {
+          // Pour mes propres messages : j'ai chiffré avec la clé publique du destinataire
+          // et ma clé privée. Pour déchiffrer, j'ai besoin de la clé publique du destinataire + ma clé privée.
+          const recipient = conversation.participants?.find(p => p.user_id !== user?.id)
+          const recipientPubKey = recipient?.user?.public_key
+          if (!recipientPubKey) return { ...msg, decrypted: '[Clé destinataire introuvable]' }
+          const text = await decryptMessage(msg.ciphertext, msg.nonce, recipientPubKey, privateKey)
+          return { ...msg, decrypted: text }
+        } else {
+          // Pour les messages reçus : chiffrés avec ma clé publique + clé privée de l'expéditeur
+          // Pour déchiffrer : clé publique de l'expéditeur + ma clé privée
+          const senderPubKey = msg.sender?.public_key
+          if (!senderPubKey) return { ...msg, decrypted: '[Clé expéditeur introuvable]' }
+          const text = await decryptMessage(msg.ciphertext, msg.nonce, senderPubKey, privateKey)
+          return { ...msg, decrypted: text }
+        }
       }
     } catch {
       return { ...msg, decrypted: '[Impossible de déchiffrer]' }
