@@ -11,6 +11,7 @@ export function useAuth() {
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
+      console.log('getSession', session?.user?.id)
       if (session?.user) {
         fetchProfile(session.user.id)
       } else {
@@ -19,6 +20,7 @@ export function useAuth() {
     })
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      console.log('onAuthStateChange', _event, session?.user?.id)
       if (session?.user) {
         fetchProfile(session.user.id)
       } else {
@@ -63,11 +65,13 @@ export function useAuth() {
   }, [user])
 
   async function fetchProfile(userId: string) {
-    const { data } = await supabase
+    console.log('fetchProfile called', userId)
+    const { data, error } = await supabase
       .from('users')
       .select('*')
       .eq('id', userId)
       .single()
+    console.log('fetchProfile result', { data, error })
 
     if (data) {
       if (data.role === 'banned') {
@@ -77,8 +81,8 @@ export function useAuth() {
         return
       }
       setUser(data as User)
-      // Récupère la privateKey depuis sessionStorage (effacé à la fermeture du tab)
       const pk = sessionStorage.getItem(`r3lay-pk-${userId}`)
+      console.log('privateKey from sessionStorage', pk ? 'found' : 'not found')
       if (pk) setPrivateKey(pk)
     }
     setLoading(false)
@@ -111,7 +115,6 @@ export function useAuth() {
       throw new Error(insertError.message)
     }
 
-    // Clé chiffrée dans localStorage (permanente), clé en clair dans sessionStorage (session uniquement)
     localStorage.setItem(`r3lay-pk-${userId}`, JSON.stringify(encrypted))
     sessionStorage.setItem(`r3lay-pk-${userId}`, keyPair.privateKey)
     setPrivateKey(keyPair.privateKey)
@@ -140,7 +143,6 @@ export function useAuth() {
     const { encryptedKey, salt, nonce } = JSON.parse(stored)
     const pk = await decryptPrivateKey(encryptedKey, salt, nonce, password)
 
-    // Clé en clair dans sessionStorage — effacée à la fermeture du tab
     sessionStorage.setItem(`r3lay-pk-${userId}`, pk)
     setPrivateKey(pk)
   }
