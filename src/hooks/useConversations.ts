@@ -37,8 +37,6 @@ export function useConversations() {
       const rawConv = row.conversations as any
       if (!rawConv) continue
 
-      // Supabase retourne les participants sous "conversation_participants" (nom de la table)
-      // On les normalise vers "participants" pour correspondre au type Conversation
       const participants: Participant[] = (rawConv.conversation_participants ?? []).map((p: any) => ({
         ...p,
         user: p.users ?? null,
@@ -52,8 +50,6 @@ export function useConversations() {
       if (conv.is_group && row.encrypted_group_key && row.group_key_nonce) {
         try {
           const { decryptGroupKey } = await import('../lib/crypto')
-          // La clé de groupe a été chiffrée par le owner avec la clé publique de chaque membre.
-          // Pour déchiffrer, on a besoin de la clé publique du owner (l'expéditeur du chiffrement).
           const ownerParticipant = participants.find(p => p.role === 'owner')
           if (ownerParticipant?.user?.public_key) {
             const groupKey = await decryptGroupKey(
@@ -112,35 +108,34 @@ export function useConversations() {
   }, [user])
 
   async function createDirectConversation(recipientId: string): Promise<string> {
-  console.log('createDirectConversation called', { user, privateKey })
-  if (!user || !privateKey) throw new Error('Non authentifié')
+    console.log('createDirectConversation called', { user, privateKey })
+    if (!user || !privateKey) throw new Error('Non authentifié')
 
-  // Vérifier si une conversation directe existe déjà entre ces deux utilisateurs
-  const existing = conversations.find(c =>
-    !c.is_group &&
-    c.participants?.some(p => p.user_id === recipientId) &&
-    c.participants?.some(p => p.user_id === user.id)
-  )
-  if (existing) return existing.id
+    const existing = conversations.find(c =>
+      !c.is_group &&
+      c.participants?.some(p => p.user_id === recipientId) &&
+      c.participants?.some(p => p.user_id === user.id)
+    )
+    if (existing) return existing.id
 
-  const { data: conv, error } = await supabase
-    .from('conversations')
-    .insert({ is_group: false, created_by: user.id })
-    .select()
-    .single()
+    const { data: conv, error } = await supabase
+      .from('conversations')
+      .insert({ is_group: false, created_by: user.id })
+      .select()
+      .single()
 
-  if (error || !conv) throw new Error(`Erreur création conversation: ${error?.message}`)
+    if (error || !conv) throw new Error(`Erreur création conversation: ${error?.message}`)
 
-  const { error: partError } = await supabase.from('conversation_participants').insert([
-    { conversation_id: conv.id, user_id: user.id, role: 'owner' },
-    { conversation_id: conv.id, user_id: recipientId, role: 'member' },
-  ])
+    const { error: partError } = await supabase.from('conversation_participants').insert([
+      { conversation_id: conv.id, user_id: user.id, role: 'owner' },
+      { conversation_id: conv.id, user_id: recipientId, role: 'member' },
+    ])
 
-  if (partError) throw new Error(`Erreur ajout participants: ${partError.message}`)
+    if (partError) throw new Error(`Erreur ajout participants: ${partError.message}`)
 
-  await fetchConversations()
-  return conv.id
-}
+    await fetchConversations()
+    return conv.id
+  }
 
   async function createGroupConversation(
     name: string,
@@ -148,6 +143,16 @@ export function useConversations() {
     description?: string
   ): Promise<string> {
     if (!user || !privateKey) throw new Error('Non authentifié')
+
+    // Guard plan gratuit : max 3 groupes
+    const { data: planData } = await supabase.rpc('get_user_plan', { p_user_id: user.id })
+    const plan = planData ?? 'free'
+    if (plan === 'free') {
+      const groupCount = conversations.filter(c => c.is_group).length
+      if (groupCount >= 3) {
+        throw new Error('UPGRADE_REQUIRED: Le plan gratuit est limité à 3 groupes. Passez à Pro pour créer des groupes illimités.')
+      }
+    }
 
     const { generateGroupKey, encryptGroupKeyForMember } = await import('../lib/crypto')
     const groupKey = await generateGroupKey()
