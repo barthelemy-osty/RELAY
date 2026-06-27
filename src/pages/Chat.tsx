@@ -4,6 +4,7 @@ import { MessageThread } from '../components/chat/MessageThread'
 import { MessageInput } from '../components/chat/MessageInput'
 import { GroupInfo } from '../components/chat/GroupInfo'
 import { UnlockModal } from '../components/chat/UnlockModal'
+import { InstallPWA } from '../components/InstallPWA'
 import { Avatar } from '../components/ui/Avatar'
 import { Button } from '../components/ui/Button'
 import { useChatStore } from '../store/chatStore'
@@ -22,7 +23,7 @@ export function Chat() {
   const { user, privateKey } = useAuthStore()
   const { conversations, activeConversationId } = useChatStore()
   const activeConversation = conversations.find(c => c.id === activeConversationId) ?? null
-  const { messages, sendMessage } = useMessages(activeConversation)
+  const { messages, sendMessage, deleteMessage, toggleReaction } = useMessages(activeConversation)
   const { createDirectConversation, createGroupConversation } = useConversations()
   const [showGroupInfo, setShowGroupInfo] = useState(false)
   const navigate = useNavigate()
@@ -31,11 +32,12 @@ export function Chat() {
   const otherParticipant = activeConversation?.is_group ? null :
     activeConversation?.participants?.find(p => p.user_id !== user?.id)
 
-  // Clé privée absente (ex: refresh de page) → demander le mot de passe
   if (!privateKey) return <UnlockModal />
 
   return (
     <div className="flex h-screen bg-gray-950 overflow-hidden">
+      <InstallPWA />
+
       <div className="w-72 flex-shrink-0 flex flex-col">
         <ConversationList
           createDirectConversation={createDirectConversation}
@@ -81,7 +83,12 @@ export function Chat() {
               )}
             </header>
 
-            <MessageThread conversation={activeConversation} messages={messages} />
+            <MessageThread
+              conversation={activeConversation}
+              messages={messages}
+              onDeleteMessage={deleteMessage}
+              onToggleReaction={toggleReaction}
+            />
             <MessageInput onSend={sendMessage} />
 
             {activeConversation.is_group && (
