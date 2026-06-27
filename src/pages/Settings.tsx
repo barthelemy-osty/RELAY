@@ -7,6 +7,7 @@ import { Avatar } from '../components/ui/Avatar'
 import { useAuthStore } from '../store/authStore'
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
+import { useNavigate } from 'react-router-dom'
 import type { AccentColor, Theme, FontSize, BubbleStyle, MessageDensity, NotificationSound } from '../types'
 
 function SettingRow({ label, description, children }: { label: string; description?: string; children: React.ReactNode }) {
@@ -53,11 +54,59 @@ function ChipSelect<T extends string>({ options, value, onChange, labels }: {
   )
 }
 
+function ProfileEditSection({ user, setUser }: { user: any; setUser: (u: any) => void }) {
+  const [avatarUrl, setAvatarUrl] = useState(user?.avatar_url ?? '')
+  const [bio, setBio] = useState(user?.bio ?? '')
+  const [statusText, setStatusText] = useState(user?.status_text ?? '')
+  const [loading, setLoading] = useState(false)
+  const [success, setSuccess] = useState('')
+  const [error, setError] = useState('')
+
+  async function handleSave() {
+    if (!user) return
+    setLoading(true)
+    setSuccess('')
+    setError('')
+    const { error: err } = await supabase
+      .from('users')
+      .update({ avatar_url: avatarUrl || null, bio: bio || null, status_text: statusText || null })
+      .eq('id', user.id)
+    setLoading(false)
+    if (err) { setError(err.message); return }
+    setUser({ ...user, avatar_url: avatarUrl || null, bio: bio || null, status_text: statusText || null })
+    setSuccess('Profil mis à jour !')
+  }
+
+  return (
+    <div className="bg-white/4 rounded-2xl p-4 mb-4">
+      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Modifier le profil</p>
+      <div className="space-y-3">
+        <div>
+          <label className="text-xs text-gray-500 mb-1 block">URL de l'avatar</label>
+          <Input placeholder="https://..." value={avatarUrl} onChange={e => setAvatarUrl(e.target.value)} />
+        </div>
+        <div>
+          <label className="text-xs text-gray-500 mb-1 block">Bio</label>
+          <Input placeholder="Quelques mots sur vous..." value={bio} onChange={e => setBio(e.target.value)} />
+        </div>
+        <div>
+          <label className="text-xs text-gray-500 mb-1 block">Statut</label>
+          <Input placeholder="En réunion, Disponible..." value={statusText} onChange={e => setStatusText(e.target.value)} />
+        </div>
+        {error && <p className="text-xs text-rose-400">{error}</p>}
+        {success && <p className="text-xs text-emerald-400">{success}</p>}
+        <Button size="sm" loading={loading} onClick={handleSave}>Sauvegarder</Button>
+      </div>
+    </div>
+  )
+}
+
 export function Settings() {
   const { settings, updateSetting, resetSettings } = useSettingsStore()
   const { user, setUser } = useAuthStore()
   const { signOut } = useAuth()
   const { isAppAdmin, bannedUsers, fetchBannedUsers, banUser, unbanUser, searchUsers } = useAdmin()
+  const navigate = useNavigate()
   const [adminSearch, setAdminSearch] = useState('')
   const [adminResults, setAdminResults] = useState<any[]>([])
   const [activeSection, setActiveSection] = useState<'appearance' | 'notifications' | 'security' | 'account' | 'admin'>('appearance')
@@ -136,7 +185,15 @@ export function Settings() {
             <span>{s.icon}</span> {s.label}
           </button>
         ))}
-        <div className="mt-auto pt-3 border-t border-white/6">
+        <div className="mt-auto pt-3 border-t border-white/6 space-y-1">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="w-full justify-start gap-2 text-amber-400 hover:text-amber-300"
+            onClick={() => navigate('/pricing')}
+          >
+            ✦ Abonnement
+          </Button>
           <Button variant="danger" size="sm" className="w-full" onClick={signOut}>
             Déconnexion
           </Button>
@@ -262,6 +319,8 @@ export function Settings() {
                 <p className="text-xs text-gray-600 mt-0.5 capitalize">{user?.role ?? 'user'}</p>
               </div>
             </div>
+
+            <ProfileEditSection user={user} setUser={setUser} />
 
             <div className="bg-white/4 rounded-2xl p-4 mb-4">
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Changer de nom d'utilisateur</p>
