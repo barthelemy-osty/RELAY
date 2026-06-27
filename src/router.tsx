@@ -3,6 +3,7 @@ import { Login } from './pages/Login'
 import { Register } from './pages/Register'
 import { Chat } from './pages/Chat'
 import { Settings } from './pages/Settings'
+import { PricingPage } from './pages/PricingPage'
 import { useAuthStore } from './store/authStore'
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
@@ -13,15 +14,12 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
     </div>
   )
   if (!user) return <Navigate to="/login" replace />
-  // privateKey absente = géré dans le Chat via UnlockModal, pas une redirection
   return <>{children}</>
 }
 
 function RedirectIfAuth({ children }: { children: React.ReactNode }) {
   const { user, privateKey, isLoading } = useAuthStore()
   if (isLoading) return null
-  // Ne rediriger vers /chat que si on a aussi la privateKey — sinon on reste sur /login
-  // pour que l'utilisateur puisse ressaisir son mot de passe et déverrouiller ses clés
   if (user && privateKey) return <Navigate to="/chat" replace />
   return <>{children}</>
 }
@@ -43,5 +41,9 @@ export const router = createBrowserRouter([
   {
     path: '/settings',
     element: <RequireAuth><Settings /></RequireAuth>,
+  },
+  {
+    path: '/pricing',
+    element: <RequireAuth><PricingPage /></RequireAuth>,
   },
 ])
