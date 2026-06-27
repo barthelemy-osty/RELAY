@@ -6,10 +6,13 @@ export interface User {
   public_key: string
   key_fingerprint: string
   bio: string | null
+  status_text: string | null
+  last_seen: string | null
   role: 'user' | 'moderator' | 'admin' | 'banned'
+  is_deleted: boolean
+  deleted_at: string | null
   created_at: string
 }
-
 export interface Conversation {
   id: string
   name: string | null
@@ -22,7 +25,6 @@ export interface Conversation {
   participants?: Participant[]
   unread_count?: number
 }
-
 export interface Participant {
   user_id: string
   conversation_id: string
@@ -31,21 +33,23 @@ export interface Participant {
   encrypted_group_key: string | null
   user?: User
 }
-
 export interface Message {
   id: string
   conversation_id: string
-  sender_id: string
+  sender_id: string | null
   ciphertext: string
   nonce: string
   created_at: string
   edited_at: string | null
   reply_to_id: string | null
-  sender?: User
+  status: 'sent' | 'delivered' | 'read'
+  deleted_for_all: boolean
+  deleted_for: string[]
+  sender?: User | null
   reply_to?: Message | null
   decrypted?: string
+  reactions?: Reaction[]
 }
-
 export interface Reaction {
   id: string
   message_id: string
@@ -53,7 +57,6 @@ export interface Reaction {
   emoji: string
   created_at: string
 }
-
 export type Theme = 'dark' | 'light' | 'system'
 export type AccentColor = 'violet' | 'blue' | 'emerald' | 'rose' | 'amber' | 'cyan'
 export type FontSize = 'sm' | 'md' | 'lg'
@@ -61,7 +64,6 @@ export type BubbleStyle = 'modern' | 'minimal' | 'rounded'
 export type MessageDensity = 'compact' | 'comfortable' | 'spacious'
 export type BackgroundPattern = 'none' | 'dots' | 'grid' | 'noise'
 export type NotificationSound = 'none' | 'subtle' | 'default' | 'chime'
-
 export interface AppSettings {
   theme: Theme
   accentColor: AccentColor
@@ -77,7 +79,6 @@ export interface AppSettings {
   blurSensitiveContent: boolean
   language: 'fr' | 'en'
 }
-
 export const DEFAULT_SETTINGS: AppSettings = {
   theme: 'dark',
   accentColor: 'violet',
